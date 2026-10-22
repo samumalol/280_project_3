@@ -1,0 +1,204 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="description" content="CS180 Project 3: sampling and editing with a pretrained flow model, and training flow matching models from scratch on MNIST."><title>Fun with Flow Models — Project 3</title><link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%23152237'/%3E%3Cpath d='M5 24C11 24 11 8 17 8s6 16 10 16' fill='none' stroke='%237caaff' stroke-width='3'/%3E%3C/svg%3E"><style>
+:root{--ink:#152237;--muted:#536277;--accent:#1f57ba;--line:#dbe3ee;--paper:#fff;--wash:#f3f6fb}
+*{box-sizing:border-box}html{scroll-behavior:smooth;scroll-padding-top:95px}body{margin:0;background:var(--paper);color:var(--ink);font:17px/1.7 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}a{color:var(--accent);text-underline-offset:4px}a:hover{color:#102e66}nav{position:sticky;top:0;z-index:10;background:#ffffffef;backdrop-filter:blur(12px);border-bottom:1px solid var(--line);padding:13px max(24px,calc((100vw - 1160px)/2));display:flex;gap:22px;overflow-x:auto;font-size:14px;white-space:nowrap}nav a{text-decoration:none;font-weight:600}nav .part{color:var(--muted);font-weight:700;letter-spacing:.1em}main{max-width:1160px;margin:auto;padding:0 28px}header{padding:64px 0 36px;border-bottom:2px solid var(--ink)}.eyebrow,.section-number{text-transform:uppercase;letter-spacing:.14em;font-size:13px;font-weight:700;color:var(--accent)}h1{font-family:Georgia,serif;font-weight:400;font-size:clamp(36px,6vw,66px);letter-spacing:-.035em;line-height:1.1;max-width:900px;margin:18px 0 24px}header p{font-size:20px;max-width:780px;color:var(--muted)}.hero{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:30px}.hero img{display:block;width:100%;height:220px;object-fit:contain;background:var(--wash)}.hero span{display:block;font-size:14px;margin-top:6px;color:var(--muted)}section{padding:55px 0;border-bottom:1px solid var(--line)}h2{font:400 clamp(28px,4vw,40px)/1.2 Georgia,serif;margin:12px 0 24px;letter-spacing:-.02em}h3{font-size:22px;margin-top:42px}h4{font-size:18px;margin:34px 0 0}p{max-width:950px}figure{margin:30px 0}figure img{display:block;width:100%;height:auto;background:var(--wash);border:1px solid var(--line)}figcaption{font-size:14px;line-height:1.65;color:var(--muted);margin-top:10px;max-width:1000px}pre{font:14px/1.65 Consolas,"Courier New",monospace;background:#101e32;color:#e3efff;padding:23px;border-radius:4px;overflow:auto;tab-size:4}p code,li code,td code,figcaption code{font-size:.9em;background:var(--wash);padding:2px 4px}table{border-collapse:collapse;width:100%;font-size:15px;margin:22px 0}th,td{text-align:left;padding:14px;border-bottom:1px solid var(--line)}th{background:var(--wash)}.download{display:inline-block;margin:8px 20px 0 0;font-size:15px}footer{padding:30px 0 60px;color:var(--muted);font-size:14px}
+.part-intro{padding:70px 0 40px;border-bottom:2px solid var(--ink)}.part-intro h2{font-size:clamp(32px,5vw,52px)}.eq{font:19px/1.6 Georgia,serif;background:var(--wash);padding:14px 20px;max-width:950px;overflow-x:auto}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:18px;margin:30px 0}.grid figure{margin:0}figure.square{max-width:360px}.hybrid{display:flex;align-items:flex-end;gap:28px;flex-wrap:wrap}.hybrid img{border:1px solid var(--line);background:var(--wash)}.hybrid .near{width:min(100%,420px)}.hybrid .far{width:56px}.hybrid span{display:block;font-size:13px;color:var(--muted);margin-top:6px}.slot{border:2px dashed var(--line);background:var(--wash);color:var(--muted);padding:34px 24px;text-align:center;font-size:15px;margin:30px 0}.slot b{display:block;color:var(--ink);margin-bottom:4px}.todo{border:2px dashed #d9a400;background:#fff8e1;padding:16px 22px;margin:26px 0;max-width:950px;font-size:15px}.todo b{display:block;color:#8a6100;text-transform:uppercase;letter-spacing:.12em;font-size:12px;margin-bottom:4px}.todo ul{margin:6px 0;padding-left:20px}.todo small{color:#8a6100}.settings{max-width:620px}
+@media(max-width:680px){main{padding:0 18px}header{padding-top:35px}.hero{gap:8px}.hero img{height:120px}section{padding:35px 0}pre{font-size:12px;padding:15px}table{font-size:12px}th,td{padding:8px}nav{padding:12px 18px;gap:18px}.eq{font-size:16px}}@media print{nav{display:none}main{max-width:none}section{break-before:auto}h2,h3,h4,.section-number,.eq{break-after:avoid;page-break-after:avoid}figure,pre,.grid,table{break-inside:avoid}a{color:inherit}body{font-size:11pt}header{padding-top:0}h1{font-size:32pt}pre{white-space:pre-wrap;background:#f3f6fb;color:#152237}figure img{max-height:700px;object-fit:contain}section{padding:20px 0}}
+</style></head><body>
+<nav aria-label="Sections"><span class="part">A</span><a href="#a1">Training &amp; sampling</a><a href="#a2">Guidance</a><a href="#a3">Creative</a><a href="#abw">B&amp;W</a><span class="part">B</span><a href="#b1">Denoiser</a><a href="#b2">Time-conditioned</a><a href="#b3">Class-conditioned</a><a href="#bbw">B&amp;W</a><a href="#sources">Sources</a></nav>
+<main>
+<header><div class="eyebrow">Computer vision · Project 03</div><h1>Fun with<br>flow models.</h1>
+<p>Part A samples and edits images with a pretrained flow model. Part B trains a denoiser and flow matching models from scratch on MNIST.</p>
+<a class="download" href="#a1">Part A: pretrained flow model</a><a class="download" href="#b1">Part B: flow matching from scratch</a>
+<div class="hero"><div><img src="assets/hero_cfg.webp" alt="Sample generated with classifier-free guidance"><span>01 · Sample with guidance</span></div><div><img src="assets/hero_logo.webp" alt="Generated course logo"><span>02 · Design a course logo</span></div><div><img src="assets/hero_digits.webp" alt="Class-conditioned MNIST samples"><span>03 · Draw digits from noise</span></div></div></header>
+
+<!-- ===================== PART A ===================== -->
+<div class="part-intro" id="part-a"><div class="eyebrow">Part A</div><h2>Exploring the power of flow models</h2>
+<p>All Part A results use the pretrained PixNerd text-to-image flow model at 512 × 512.</p></div>
+
+<section id="a1"><div class="section-number">A · 1</div><h2>Visualizing training and sampling</h2>
+
+<h3 id="a11">1.1 Constructing noisy training inputs</h3>
+<p class="eq">x<sub>t</sub> = (1 − t) ε + t x<sub>1</sub>,&nbsp;&nbsp; ε ∼ N(0, I)</p>
+<figure><a href="assets/a11_training_inputs.webp"><img src="assets/a11_training_inputs.webp" loading="lazy" alt="Original image and noisy inputs at t = 0.25, 0.50, 0.75"></a><figcaption>My image and noisy training inputs at t = 0.25, 0.50 and 0.75. All three use the same noise sample ε.</figcaption></figure>
+
+<h3 id="a12">1.2 Classical denoising</h3>
+<p class="eq">x̂<sub>1</sub> = G<sub>σ</sub>(x<sub>t</sub> / t)</p>
+<div class="grid">
+<figure><a href="assets/a12_blur_025.webp"><img src="assets/a12_blur_025.webp" loading="lazy" alt="Gaussian denoising at t = 0.25"></a><figcaption>t = 0.25</figcaption></figure>
+<figure><a href="assets/a12_blur_050.webp"><img src="assets/a12_blur_050.webp" loading="lazy" alt="Gaussian denoising at t = 0.50"></a><figcaption>t = 0.50</figcaption></figure>
+<figure><a href="assets/a12_blur_075.webp"><img src="assets/a12_blur_075.webp" loading="lazy" alt="Gaussian denoising at t = 0.75"></a><figcaption>t = 0.75</figcaption></figure>
+</div>
+<p><small>Each pair shows the noisy input and the Gaussian-blur estimate. σ was chosen from {1, 2, 4, 8, 16} as the value with the lowest mean squared error to the original; the chosen σ is printed above each result.</small></p>
+
+<h3 id="a13">1.3 One-step denoising</h3>
+<p class="eq">x̂<sub>1</sub> = x<sub>t</sub> + (1 − t) v<sub>θ</sub>(x<sub>t</sub>, t, c)</p>
+<p>Prompt: <code>"a high quality photo"</code>.</p>
+<figure><a href="assets/a13_one_step_025.webp"><img src="assets/a13_one_step_025.webp" loading="lazy" alt="One-step denoising at t = 0.25"></a><figcaption>t = 0.25 · original, noisy input, one-step estimate.</figcaption></figure>
+<figure><a href="assets/a13_one_step_050.webp"><img src="assets/a13_one_step_050.webp" loading="lazy" alt="One-step denoising at t = 0.50"></a><figcaption>t = 0.50 · original, noisy input, one-step estimate.</figcaption></figure>
+<figure><a href="assets/a13_one_step_075.webp"><img src="assets/a13_one_step_075.webp" loading="lazy" alt="One-step denoising at t = 0.75"></a><figcaption>t = 0.75 · original, noisy input, one-step estimate.</figcaption></figure>
+
+<h3 id="a14">1.4 Visualizing velocity</h3>
+<p>Predicted update (1 − t) v̂<sub>t</sub> versus the ground-truth update (1 − t) v<sub>gt</sub> = x<sub>1</sub> − x<sub>t</sub>, with the per-pixel RMS error over RGB.</p>
+<figure class="square"><a href="assets/a14_velocity_original.webp"><img src="assets/a14_velocity_original.webp" loading="lazy" alt="Original image"></a><figcaption>Original image.</figcaption></figure>
+<figure><a href="assets/a14_velocity_025.webp"><img src="assets/a14_velocity_025.webp" loading="lazy" alt="Velocity visualization at t = 0.25"></a><figcaption>t = 0.25</figcaption></figure>
+<figure><a href="assets/a14_velocity_050.webp"><img src="assets/a14_velocity_050.webp" loading="lazy" alt="Velocity visualization at t = 0.50"></a><figcaption>t = 0.50</figcaption></figure>
+<figure><a href="assets/a14_velocity_075.webp"><img src="assets/a14_velocity_075.webp" loading="lazy" alt="Velocity visualization at t = 0.75"></a><figcaption>t = 0.75</figcaption></figure>
+
+<h3 id="a15">1.5 Iterative denoising with Euler sampling</h3>
+<p class="eq">x<sub>t+h</sub> = x<sub>t</sub> + h v<sub>θ</sub>(x<sub>t</sub>, t, c),&nbsp;&nbsp; h = 0.02</p>
+<figure><a href="assets/a15_trajectory.webp"><img src="assets/a15_trajectory.webp" loading="lazy" alt="Euler denoising trajectory"></a><figcaption>Euler trajectory starting from the t = 0.50 noisy image: 25 updates, shown every fifth update.</figcaption></figure>
+<figure><a href="assets/a15_comparison.webp"><img src="assets/a15_comparison.webp" loading="lazy" alt="Comparison of denoising methods"></a><figcaption>Same noisy input: original, Gaussian blur (1.2), one-step estimate (1.3) and Euler result.</figcaption></figure>
+<p>The Euler result is the sharpest of the four. The house edges, the cars and the road markings are crisp. The one-step estimate is smooth and slightly washed out. Gaussian blur cannot separate the noise from the image at all, so it leaves a grainy, low-contrast blur. The Euler result is not a faithful copy of the original, though. Fine detail such as the distant city is replaced by plausible but invented texture, and the colors are more saturated: the sky turns cyan and the shadows get darker. A single step predicts the average of every clean image consistent with the noisy input, and that average is blurry. Many small steps let the model commit to one sharp image, at the cost of departing from the original wherever the noise hid the true detail.</p>
+
+<h3 id="a16">1.6 Generating images from noise</h3>
+<figure><a href="assets/a16_samples.webp"><img src="assets/a16_samples.webp" loading="lazy" alt="Samples generated from pure noise"></a><figcaption>Samples from pure noise (t<sub>start</sub> = 0) with the prompt <code>"a high quality photo"</code> and no guidance. Seeds are printed above each image.</figcaption></figure>
+<p>All five samples are dogs, photographed like studio portraits against a plain gray, brown or white backdrop. The generic prompt <code>"a high quality photo"</code> strongly favors this one subject, probably because high-quality pet portraits are common in the model's training data. Without guidance the samples look plausible at first glance, but the textures are soft and the anatomy is often wrong, for example the shapeless, oversized body of the dog for seed 184.</p>
+</section>
+
+<section id="a2"><div class="section-number">A · 2</div><h2>Conditional generation and guidance</h2>
+<h3 id="a21">2.1 Classifier-free guidance</h3>
+<p class="eq">v<sub>cfg</sub> = v<sub>c</sub> + w (v<sub>c</sub> − v<sub>u</sub>),&nbsp;&nbsp; w = 7</p>
+<p>v<sub>c</sub> uses <code>"a high quality photo"</code>; v<sub>u</sub> uses the empty prompt <code>""</code>.</p>
+<figure><a href="assets/a21_cfg_samples.webp"><img src="assets/a21_cfg_samples.webp" loading="lazy" alt="Samples with classifier-free guidance"></a><figcaption>CFG samples (w = 7) from the same initial noise as in 1.6.</figcaption></figure>
+<p>From the same five noise samples, CFG still produces dogs, but the images are clearly cleaner. Faces, eyes and fur are sharper, the lighting has more contrast, and the backgrounds collapse to plain white or black. The anatomy is more coherent than in 1.6, although seed 181 grew an odd hat-like object. Guidance pushes each sample further toward the prompt and away from the unconditional prediction. That improves quality and prompt adherence at the cost of diversity: the five images now share very similar poses, lighting and backgrounds.</p>
+</section>
+
+<section id="a3"><div class="section-number">A · 3</div><h2>Creative applications</h2>
+<p>All results in this section use Euler step h = 0.02 and CFG with w = 7, with the empty prompt as the unconditional prompt.</p>
+
+<h3 id="a31">3.1 Image-to-image editing</h3>
+<p>Each image is noised to a starting time t and then denoised with the prompt <code>"a high quality photo"</code>. Starting times: 0.02, 0.04, 0.06, 0.10, 0.14, 0.25, 0.50. Because t = 0 is pure noise, a smaller starting time keeps less of the input: at 0.02 the result is an unrelated new image, and by 0.25–0.50 it stays close to the original.</p>
+<figure><a href="assets/a31_edit_campanile.webp"><img src="assets/a31_edit_campanile.webp" loading="lazy" alt="Edited Campanile"></a><figcaption>Campanile.</figcaption></figure>
+<figure><a href="assets/a31_edit_my_image_1.webp"><img src="assets/a31_edit_my_image_1.webp" loading="lazy" alt="Edits of my first test image"></a><figcaption>My test image 1.</figcaption></figure>
+<figure><a href="assets/a31_edit_my_image_2.webp"><img src="assets/a31_edit_my_image_2.webp" loading="lazy" alt="Edits of my second test image"></a><figcaption>My test image 2.</figcaption></figure>
+<h4>Editing hand-drawn and web images</h4>
+<figure><a href="assets/a31_edit_web_image.webp"><img src="assets/a31_edit_web_image.webp" loading="lazy" alt="Edits of a web image"></a><figcaption>Web image: <a href="https://www.pexels.com/photo/an-orange-tabby-cat-15116818/">an orange tabby cat</a>, photo by Ludovic Delot on Pexels.</figcaption></figure>
+<figure><a href="assets/a31_edit_drawing_1.webp"><img src="assets/a31_edit_drawing_1.webp" loading="lazy" alt="Edits of my first drawing"></a><figcaption>My drawing 1.</figcaption></figure>
+<figure><a href="assets/a31_edit_drawing_2.webp"><img src="assets/a31_edit_drawing_2.webp" loading="lazy" alt="Edits of my second drawing"></a><figcaption>My drawing 2.</figcaption></figure>
+
+<h3 id="a32">3.2 Text-guided image editing</h3>
+<p>Same procedure and starting times as 3.1, with a new prompt for each image.</p>
+<figure><a href="assets/a32_text_edit_campanile.webp"><img src="assets/a32_text_edit_campanile.webp" loading="lazy" alt="Campanile edited toward a pencil"></a><figcaption>Campanile · prompt <code>"a photograph of a pencil"</code></figcaption></figure>
+<figure><a href="assets/a32_text_edit_my_image_1.webp"><img src="assets/a32_text_edit_my_image_1.webp" loading="lazy" alt="Test image 1 edited toward an upside-down broom"></a><figcaption>My test image 1 · prompt <code>"an upside-down broom"</code></figcaption></figure>
+<figure><a href="assets/a32_text_edit_my_image_2.webp"><img src="assets/a32_text_edit_my_image_2.webp" loading="lazy" alt="Test image 2 edited toward a marble throne"></a><figcaption>My test image 2 · prompt <code>"a marble throne"</code></figcaption></figure>
+
+<h3 id="a33">3.3 Visual anagrams</h3>
+<p class="eq">v = ½ [ v<sub>cfg</sub>(x<sub>t</sub>, t, p<sub>1</sub>) + flip( v<sub>cfg</sub>(flip(x<sub>t</sub>), t, p<sub>2</sub>) ) ]</p>
+<div class="grid">
+<figure><a href="assets/a33_anagram_0.webp"><img src="assets/a33_anagram_0.webp" loading="lazy" alt="Visual anagram: old man and campfire"></a><figcaption>Upright: <code>"an oil painting of an old man"</code> · flipped 180°: <code>"an oil painting of people around a campfire"</code></figcaption></figure>
+<figure><a href="assets/a33_anagram_1.webp"><img src="assets/a33_anagram_1.webp" loading="lazy" alt="Visual anagram: mountain village and horse"></a><figcaption>Upright: <code>"a lithograph of a snowy mountain village"</code> · flipped 180°: <code>"a lithograph of a horse"</code></figcaption></figure>
+</div>
+
+<h3 id="a34">3.4 Hybrid images</h3>
+<p class="eq">v = f<sub>lowpass</sub>(v<sub>1</sub>) + f<sub>highpass</sub>(v<sub>2</sub>)</p>
+<p>The low-pass filter is a Gaussian blur with kernel size 265 and σ = 16. The high-pass part is a prediction minus its low-pass version. Each hybrid is shown close up and small, as if seen from far away.</p>
+<figure><div class="hybrid"><div><a href="assets/a34_hybrid_0.webp"><img class="near" src="assets/a34_hybrid_0.webp" loading="lazy" alt="Hybrid image: waterfall up close, skull from far away"></a><span>Close</span></div><div><img class="far" src="assets/a34_hybrid_0.webp" loading="lazy" alt="Same hybrid shown small"><span>Far</span></div></div><figcaption>Close: <code>"a lithograph of a waterfall"</code> · far: <code>"a lithograph of a skull"</code></figcaption></figure>
+<figure><div class="hybrid"><div><a href="assets/a34_hybrid_1.webp"><img class="near" src="assets/a34_hybrid_1.webp" loading="lazy" alt="Hybrid image: forest up close, cat from far away"></a><span>Close</span></div><div><img class="far" src="assets/a34_hybrid_1.webp" loading="lazy" alt="Same hybrid shown small"><span>Far</span></div></div><figcaption>Close: <code>"a lithograph of a forest"</code> · far: <code>"a lithograph of a cat"</code></figcaption></figure>
+</section>
+
+<section id="abw"><div class="section-number">A · Bells &amp; whistles</div><h2>More anagrams and a course logo</h2>
+<h3>More visual anagrams: vertical reflection and color inversion</h3>
+<div class="grid">
+<figure><a href="assets/abw_reflection.webp"><img src="assets/abw_reflection.webp" loading="lazy" alt="Vertical reflection anagram"></a><figcaption>Vertical reflection, seed 281. Original: <code>"an oil painting of an old man with a long beard"</code> · reflected top to bottom: <code>"an oil painting of people around a campfire"</code></figcaption></figure>
+<figure><a href="assets/abw_inversion.webp"><img src="assets/abw_inversion.webp" loading="lazy" alt="Color inversion anagram"></a><figcaption>Color inversion, seed 283. Original: <code>"a black and white lithograph of a skull"</code> · inverted: <code>"a black and white lithograph of a vase of flowers"</code></figcaption></figure>
+</div>
+<p>Section 3.3 averages two velocities: one for prompt p<sub>1</sub> on x<sub>t</sub>, and one for prompt p<sub>2</sub> on a transformed image T(x<sub>t</sub>), mapped back with T<sup>−1</sup>. Any T works as long as it is orthogonal, so that a transformed noisy image is still a valid noisy image. Both transforms I used undo themselves (T<sup>−1</sup> = T):</p>
+<ul>
+<li><strong>Vertical reflection</strong> flips the image top to bottom. Unlike the 180° rotation in 3.3, left and right stay in place. The bearded man's lit forehead becomes the campfire, and the shadows of his face become the people sitting around it.</li>
+<li><strong>Color inversion</strong> negates the image (x ↦ −x for pixel values in [−1, 1]). The bright skull on a black background becomes a dark vase of flowers on a white background; the eye sockets and cheekbones turn into flowers.</li>
+</ul>
+<p>Both illusions work, but not perfectly. In the skull view, the floral texture is still visible inside the skull.</p>
+<h3>A computer vision course logo</h3>
+<figure><a href="assets/abw_logo_comparison.webp"><img src="assets/abw_logo_comparison.webp" loading="lazy" alt="Course logo sketch and edits"></a><figcaption>Sketch, then text-guided edits at t<sub>start</sub> = 0.25, 0.50 and 0.75 (seed 284, w = 7, h = 0.02). Prompt: <code>"a clean flat vector logo for a computer vision university course, a navy blue eye surrounding a golden university clock tower, circular badge, simple bold geometric shapes, navy blue and gold, centered on a plain white background, no text, no letters"</code></figcaption></figure>
+<p>I drew a simple sketch of the logo in code with PIL shapes: a navy eye inside a circular badge, with a gold clock tower as the pupil, a nod to the Campanile. Then I edited it with the prompt above at three starting times, all from the same noise (seed 284). A smaller starting time means more noise, so t<sub>start</sub> = 0.25 changes the sketch the most: the tower gets a proper roof, a clock face and an arched doorway, while the circle and the eye keep their flat geometric shapes. At 0.50 and 0.75 the result stays almost identical to the sketch. I chose t<sub>start</sub> = 0.25 as the final logo, shown at the top of this page.</p>
+</section>
+
+<!-- ===================== PART B ===================== -->
+<div class="part-intro" id="part-b"><div class="eyebrow">Part B</div><h2>Flow matching from scratch</h2>
+<p>All Part B models are UNets trained on the MNIST training set, with pixel values in [0, 1].</p></div>
+
+<section id="b1"><div class="section-number">B · 1</div><h2>Training a single-step denoising UNet</h2>
+<h3 id="b12">1.2 The noising process</h3>
+<p class="eq">z = x + σ ε,&nbsp;&nbsp; ε ∼ N(0, I)</p>
+<figure><a href="assets/b12_noise_levels.webp"><img src="assets/b12_noise_levels.webp" loading="lazy" alt="Four test digits noised at increasing sigma"></a><figcaption>Four test digits (rows) noised at σ = 0.0, 0.2, 0.4, 0.5, 0.6, 0.8 and 1.0 (columns), with the same ε along each row. By σ = 1.0 the digit is barely visible.</figcaption></figure>
+
+<h3 id="b121">1.2.1 Training</h3>
+<table class="settings"><tbody>
+<tr><th>Noise level</th><td>σ = 0.5</td></tr>
+<tr><th>UNet hidden channels</th><td>D = 128</td></tr>
+<tr><th>Optimizer</th><td>Adam, learning rate 1e-4</td></tr>
+<tr><th>Batch size · epochs</th><td>256 · 5</td></tr>
+</tbody></table>
+<figure><a href="assets/b121_loss.webp"><img src="assets/b121_loss.webp" loading="lazy" alt="Denoiser training loss curve"></a><figcaption>Training loss (MSE) at every optimizer step over 5 epochs; the darker line is a 100-step moving average. The loss drops quickly in the first 100 steps and ends near 0.01.</figcaption></figure>
+<figure><a href="assets/b121_epoch1.webp"><img src="assets/b121_epoch1.webp" loading="lazy" alt="Test-set denoising after epoch 1"></a><figcaption>After epoch 1: clean test digits (top), noisy inputs at σ = 0.5 (middle) and denoised outputs (bottom). Most digits are recovered, but some are blotchy or broken, such as the thin 1 (third) and the 9 (last).</figcaption></figure>
+<figure><a href="assets/b121_epoch5.webp"><img src="assets/b121_epoch5.webp" loading="lazy" alt="Test-set denoising after epoch 5"></a><figcaption>After epoch 5, for the same noisy inputs: the outputs are cleaner and smoother. Only the faint 1 (third) and the 9 (last) are still imperfect.</figcaption></figure>
+
+<h3 id="b122">1.2.2 Out-of-distribution testing</h3>
+<figure><a href="assets/b122_ood.webp"><img src="assets/b122_ood.webp" loading="lazy" alt="Out-of-distribution denoising across noise levels"></a><figcaption>Two test digits at σ = 0.0, 0.2, 0.4, 0.5, 0.6, 0.8 and 1.0 (columns): noisy inputs in rows 1 and 3, denoised outputs in rows 2 and 4. All outputs come from the model trained only at σ = 0.5.</figcaption></figure>
+<p>The denoiser handles every noise level up to about σ = 0.6 well, including levels it never saw during training, and it leaves the clean input (σ = 0) essentially unchanged. Above that it breaks down: at σ = 0.8 and 1.0 it leaves blotches and adds extra strokes around the digit, because the noise is stronger than anything it learned to remove.</p>
+
+<h3 id="b123">1.2.3 Denoising pure noise</h3>
+<p>Same training setup as 1.2.1, but the input is pure noise z = ε, drawn independently of the target digit.</p>
+<figure><a href="assets/b123_loss.webp"><img src="assets/b123_loss.webp" loading="lazy" alt="Pure-noise training loss curve"></a><figcaption>Training loss for the pure-noise model. It stops falling after about 200 steps and stays near 0.068, far above the σ = 0.5 denoiser.</figcaption></figure>
+<figure><a href="assets/b123_epoch1.webp"><img src="assets/b123_epoch1.webp" loading="lazy" alt="Pure-noise outputs after epoch 1"></a><figcaption>After epoch 1: ten pure-noise inputs (top) and the model's outputs (bottom).</figcaption></figure>
+<figure><a href="assets/b123_epoch5.webp"><img src="assets/b123_epoch5.webp" loading="lazy" alt="Pure-noise outputs after epoch 5"></a><figcaption>After epoch 5, for the same ten inputs.</figcaption></figure>
+<figure class="square"><a href="assets/b123_mean.webp"><img src="assets/b123_mean.webp" loading="lazy" alt="Mean of all MNIST training images"></a><figcaption>For comparison: the pixel-wise mean of all 60,000 training images.</figcaption></figure>
+<p><strong>Patterns.</strong> Every output is the same blurry gray oval, whichever noise image goes in. After epoch 1 the oval still carries a little speckle; after epoch 5 it is smooth, and the ten outputs are practically identical. The oval looks like several digits drawn on top of each other: a bright ring like a 0, with fainter strokes through the middle like an 8 or a 3.</p>
+<p><strong>Relation to the training images.</strong> The outputs match the pixel-wise mean of all training images almost exactly. They are not any single digit 0–9, but an average over all of them.</p>
+<p><strong>Why.</strong> The input noise is independent of the target digit, so it carries no information about which digit to produce. Under an MSE loss, the best answer for an uninformative input is the point that minimizes the summed squared distance to all training images: their mean, or centroid. The network therefore learns to ignore its input and output the mean image. The loss agrees: it levels off at about 0.068, while the MSE of always predicting the mean image, computed directly on the training set, is 0.0673 (the average per-pixel variance). This is also why a one-step denoiser cannot generate new digits from pure noise.</p>
+</section>
+
+<section id="b2"><div class="section-number">B · 2</div><h2>Flow matching with time conditioning</h2>
+<p class="eq">x<sub>t</sub> = (1 − t) x<sub>0</sub> + t x<sub>1</sub>,&nbsp;&nbsp; x<sub>0</sub> ∼ N(0, I),&nbsp;&nbsp; target u = x<sub>1</sub> − x<sub>0</sub></p>
+<table class="settings"><tbody>
+<tr><th>UNet hidden channels</th><td>D = 64</td></tr>
+<tr><th>Optimizer</th><td>Adam, initial learning rate 1e-2</td></tr>
+<tr><th>Scheduler</th><td>ExponentialLR, γ = 0.1<sup>1/10</sup>, stepped once per epoch</td></tr>
+<tr><th>Batch size · epochs</th><td>64 · 10</td></tr>
+</tbody></table>
+<h3 id="b22">2.2 Training</h3>
+<figure><a href="assets/b22_loss.webp"><img src="assets/b22_loss.webp" loading="lazy" alt="Time-conditioned training loss curve"></a><figcaption>Training loss over 10 epochs (9,380 steps). It falls from about 3 to below 0.2 within the first few hundred steps; the mean loss over the last epoch is 0.090.</figcaption></figure>
+<h3 id="b23">2.3 Sampling</h3>
+<p>40 samples, each with 50 Euler steps. All three grids start from the same noise (seed 0), so each position can be compared across epochs.</p>
+<figure><a href="assets/b23_epoch1.webp"><img src="assets/b23_epoch1.webp" loading="lazy" alt="Time-conditioned samples after epoch 1"></a><figcaption>After epoch 1: mostly strokes and scribbles; only a few samples, such as a 0, an 8 and two 1s, read as digits.</figcaption></figure>
+<figure><a href="assets/b23_epoch5.webp"><img src="assets/b23_epoch5.webp" loading="lazy" alt="Time-conditioned samples after epoch 5"></a><figcaption>After epoch 5: most samples are recognizable digits, but many are malformed.</figcaption></figure>
+<figure><a href="assets/b23_epoch10.webp"><img src="assets/b23_epoch10.webp" loading="lazy" alt="Time-conditioned samples after epoch 10"></a><figcaption>After epoch 10: most samples are legible with cleaner strokes; a few are still broken, for example the fifth and sixth samples in the first row.</figcaption></figure>
+</section>
+
+<section id="b3"><div class="section-number">B · 3</div><h2>Adding class conditioning</h2>
+<p>The class is passed as a one-hot vector and dropped (set to zero) for 10% of training steps. Sampling uses classifier-free guidance with γ = 5.0. Other settings match section B · 2.</p>
+<h3 id="b25">2.5 Training</h3>
+<figure><a href="assets/b25_loss.webp"><img src="assets/b25_loss.webp" loading="lazy" alt="Class-conditioned training loss curve"></a><figcaption>Training loss over 10 epochs; the mean loss over the last epoch is 0.083, slightly below the time-only model's 0.090.</figcaption></figure>
+<h3 id="b26">2.6 Sampling</h3>
+<p>Four samples of each digit: each row is 0–9, with 300 Euler steps and guidance scale γ = 5. All grids start from the same noise (seed 0).</p>
+<figure><a href="assets/b26_epoch1.webp"><img src="assets/b26_epoch1.webp" loading="lazy" alt="Class-conditioned samples after epoch 1"></a><figcaption>After epoch 1: every column already shows the requested digit, but the strokes are blotchy and many 4s, 5s and 9s are malformed.</figcaption></figure>
+<figure><a href="assets/b26_epoch5.webp"><img src="assets/b26_epoch5.webp" loading="lazy" alt="Class-conditioned samples after epoch 5"></a><figcaption>After epoch 5: all 40 samples are clean, recognizable digits of the requested class.</figcaption></figure>
+<figure><a href="assets/b26_epoch10.webp"><img src="assets/b26_epoch10.webp" loading="lazy" alt="Class-conditioned samples after epoch 10"></a><figcaption>After epoch 10: clean digits of every class, with a different handwriting style in each row.</figcaption></figure>
+<h4>Without the learning-rate scheduler</h4>
+<p>To remove the exponential scheduler, I trained with a constant learning rate of 1e-3, the value the scheduled run reaches by its last epoch, instead of starting at 1e-2. A constant 1e-2 would keep taking large steps late in training, when the model should be settling. A constant 1e-3 is small enough to settle, and Adam's per-parameter step sizes still make early progress fast enough within 10 epochs. Everything else (data, architecture, 10 epochs, seed) is unchanged.</p>
+<figure><a href="assets/b26_noscheduler_epoch10.webp"><img src="assets/b26_noscheduler_epoch10.webp" loading="lazy" alt="Samples without the scheduler after epoch 10"></a><figcaption>Constant learning rate 1e-3, no scheduler: samples after epoch 10.</figcaption></figure>
+<figure><a href="assets/b26_noscheduler_loss.webp"><img src="assets/b26_noscheduler_loss.webp" loading="lazy" alt="Training loss without the scheduler"></a><figcaption>Training loss without the scheduler; the mean loss over the last epoch is 0.084.</figcaption></figure>
+<p>The result is on par with the scheduled run. After 10 epochs every sample is a clean digit of the requested class, and the final mean loss is almost the same (0.084 versus 0.083). The difference shows in the loss curve: without the scheduler it stays noisier throughout training, with more spikes, because the step size never shrinks.</p>
+</section>
+
+<section id="bbw"><div class="section-number">B · Bells &amp; whistles</div><h2>A better time-conditioned UNet</h2>
+<p>The time-only model has to work out which digit to draw from the noise alone, which is harder than following a class label. I made it more expressive and trained it longer. I doubled the hidden channels (D = 64 → 128) and doubled the training (10 → 20 epochs), with the same Adam optimizer and an ExponentialLR schedule that now decays from 1e-2 to 1e-3 over the 20 epochs. I also sampled with 100 Euler steps instead of 50, which reduces the error from each discrete step.</p>
+<div class="grid">
+<figure><a href="assets/b23_epoch10.webp"><img src="assets/b23_epoch10.webp" loading="lazy" alt="Original time-conditioned samples"></a><figcaption>2.3 model: D = 64, 10 epochs, 50 steps.</figcaption></figure>
+<figure><a href="assets/bbw_samples.webp"><img src="assets/bbw_samples.webp" loading="lazy" alt="Improved time-conditioned samples"></a><figcaption>Improved model: D = 128, 20 epochs, 100 steps. Same starting noise.</figcaption></figure>
+</div>
+<figure><a href="assets/bbw_loss.webp"><img src="assets/bbw_loss.webp" loading="lazy" alt="Training loss of the improved model"></a><figcaption>Training loss of the improved model over 20 epochs; the mean loss over the last epoch is 0.087.</figcaption></figure>
+<p>The improvement is modest. Strokes are smoother, and several samples that were ambiguous in 2.3 now read as clear digits, such as the 2 and the 4 at the two ends of the bottom row. But about four of the 40 samples are still broken scribbles, and the final loss only went from 0.090 to 0.087. Without a class label the model still has to decide which digit to draw, and some starting noises land between digits.</p>
+</section>
+
+<section id="sources"><div class="section-number">Sources</div><h2>Code &amp; sources</h2>
+<ul>
+<li>Assignment: <a href="https://cal-cs180.github.io/fa26/hw/proj3-flow/parta.html">Part A</a> and <a href="https://cal-cs180.github.io/fa26/hw/proj3-flow/partb.html">Part B</a>.</li>
+<li>Pretrained model: PixNerd text-to-image flow model, as provided with the Part A notebook.</li>
+<li>Campanile image from the assignment files. Test images and drawings are my own.</li>
+<li>Web image for 3.1: <a href="https://www.pexels.com/photo/an-orange-tabby-cat-15116818/">"An orange tabby cat"</a> by Ludovic Delot, Pexels.</li>
+<li>MNIST loaded with <code>torchvision.datasets.MNIST</code>.</li>
+</ul>
+<p>Code is submitted separately on Gradescope.</p></section>
+<footer>CS180 / CS280A · Project 3 · All figures generated from the accompanying notebooks.</footer>
+</main></body></html>
